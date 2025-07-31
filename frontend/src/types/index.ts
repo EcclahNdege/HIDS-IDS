@@ -34,10 +34,17 @@ export interface SystemStatus {
 export interface ProtectedFile {
   id: string;
   path: string;
+  type?: 'file' | 'directory';
   status: 'protected' | 'locked' | 'authorized';
   lastAccessed?: string;
   accessAttempts: number;
   lockReason?: string;
+  settings?: {
+    alertOnRead?: boolean;
+    alertOnWrite?: boolean;
+    alertOnDelete?: boolean;
+    autoLock?: boolean;
+  };
 }
 
 export interface NetworkRule {

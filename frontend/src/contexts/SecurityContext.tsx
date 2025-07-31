@@ -79,13 +79,92 @@ const mockAlerts: Alert[] = [
     timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
     source: '203.0.113.42',
     status: 'resolved'
+  },
+  {
+    id: '4',
+    type: 'file',
+    severity: 'critical',
+    title: 'Protected File Modified',
+    description: 'Unauthorized modification detected on /etc/hosts',
+    timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    source: 'system',
+    status: 'active'
+  },
+  {
+    id: '5',
+    type: 'file',
+    severity: 'warning',
+    title: 'Directory Access Attempt',
+    description: 'Unauthorized access attempt to protected directory /var/log',
+    timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+    source: 'user_admin',
+    status: 'resolved'
+  }
+];
+
+const mockProtectedFiles: ProtectedFile[] = [
+  {
+    id: '1',
+    path: '/etc/passwd',
+    type: 'file',
+    status: 'protected',
+    accessAttempts: 3,
+    lastAccessed: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+    settings: {
+      alertOnRead: true,
+      alertOnWrite: true,
+      alertOnDelete: true,
+      autoLock: false
+    }
+  },
+  {
+    id: '2',
+    path: '/etc/hosts',
+    type: 'file',
+    status: 'locked',
+    accessAttempts: 7,
+    lastAccessed: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    lockReason: 'Suspicious modification attempts detected',
+    settings: {
+      alertOnRead: true,
+      alertOnWrite: true,
+      alertOnDelete: true,
+      autoLock: true
+    }
+  },
+  {
+    id: '3',
+    path: '/var/log',
+    type: 'directory',
+    status: 'protected',
+    accessAttempts: 1,
+    lastAccessed: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+    settings: {
+      alertOnRead: false,
+      alertOnWrite: true,
+      alertOnDelete: true,
+      autoLock: false
+    }
+  },
+  {
+    id: '4',
+    path: '/home/admin/.ssh/authorized_keys',
+    type: 'file',
+    status: 'authorized',
+    accessAttempts: 0,
+    settings: {
+      alertOnRead: true,
+      alertOnWrite: true,
+      alertOnDelete: true,
+      autoLock: false
+    }
   }
 ];
 
 export const SecurityProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [systemStatus, setSystemStatus] = useState<SystemStatus>(mockSystemStatus);
   const [alerts, setAlerts] = useState<Alert[]>(mockAlerts);
-  const [protectedFiles, setProtectedFiles] = useState<ProtectedFile[]>([]);
+  const [protectedFiles, setProtectedFiles] = useState<ProtectedFile[]>(mockProtectedFiles);
   const [networkRules, setNetworkRules] = useState<NetworkRule[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
@@ -136,12 +215,13 @@ export const SecurityProvider: React.FC<{ children: ReactNode }> = ({ children }
     ));
   };
 
-  const addProtectedFile = (path: string) => {
+  const addProtectedFile = (path: string, type: 'file' | 'directory' = 'file') => {
     const newFile: ProtectedFile = {
       id: crypto.randomUUID(),
       path,
       status: 'protected',
-      accessAttempts: 0
+      accessAttempts: 0,
+      type
     };
     setProtectedFiles(prev => [...prev, newFile]);
   };
@@ -159,6 +239,12 @@ export const SecurityProvider: React.FC<{ children: ReactNode }> = ({ children }
   const authorizeFile = (fileId: string) => {
     setProtectedFiles(protectedFiles.map(file =>
       file.id === fileId ? { ...file, status: 'authorized' } : file
+    ));
+  };
+
+  const updateFileSettings = (fileId: string, settings: any) => {
+    setProtectedFiles(protectedFiles.map(file =>
+      file.id === fileId ? { ...file, settings } : file
     ));
   };
 
@@ -229,7 +315,8 @@ export const SecurityProvider: React.FC<{ children: ReactNode }> = ({ children }
       addLog,
       addLogComment,
       notificationSettings,
-      updateNotificationSettings
+      updateNotificationSettings,
+      updateFileSettings
     }}>
       {children}
     </SecurityContext.Provider>

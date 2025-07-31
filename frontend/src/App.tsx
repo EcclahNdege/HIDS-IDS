@@ -7,6 +7,7 @@ import Setup from './components/Auth/Setup';
 import Login from './components/Auth/Login';
 import Dashboard from './pages/Dashboard';
 import Alerts from './pages/Alerts';
+import FileMonitoring from './pages/FileMonitoring';
 
 // Protected Route Component  
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -61,7 +62,7 @@ function AppContent() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="alerts" element={<Alerts />} />
-          <Route path="monitoring/files" element={<div className="p-8 text-center text-gray-500">File Monitoring - Coming Soon</div>} />
+          <Route path="monitoring/files" element={<FileMonitoring />} />
           <Route path="monitoring/network" element={<div className="p-8 text-center text-gray-500">Network Monitoring - Coming Soon</div>} />
           <Route path="prevention/firewall" element={<div className="p-8 text-center text-gray-500">Firewall Management - Coming Soon</div>} />
           <Route path="prevention/quarantined" element={<div className="p-8 text-center text-gray-500">Quarantine Management - Coming Soon</div>} />
