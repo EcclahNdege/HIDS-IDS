@@ -49,12 +49,25 @@ export interface ProtectedFile {
 
 export interface NetworkRule {
   id: string;
-  protocol: 'TCP' | 'UDP' | 'ICMP';
+  // protocol: 'TCP' | 'UDP' | 'ICMP';
+  protocol: string;
   port: string;
   action: 'allow' | 'deny' | 'quarantine';
   source?: string;
   description: string;
   isActive: boolean;
+}
+
+export interface QuarantinedPacket {
+  id: string;
+  source: string;
+  destination: string;
+  protocol: string;
+  port: number;
+  timestamp: string;
+  reason: string;
+  size: number;
+  status: 'quarantined' | 'released' | 'blocked';
 }
 
 export interface LogEntry {

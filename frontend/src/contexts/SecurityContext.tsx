@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Alert, SystemStatus, ProtectedFile, NetworkRule, LogEntry, NotificationSettings } from '../types';
+import { Alert, SystemStatus, ProtectedFile, NetworkRule, LogEntry, NotificationSettings, QuarantinedPacket } from '../types';
 
 interface SecurityContextType {
   // System Status
@@ -7,6 +7,7 @@ interface SecurityContextType {
   
   // Alerts
   alerts: Alert[];
+  networkAlerts: Alert[];
   unreadAlertsCount: number;
   addAlert: (alert: Omit<Alert, 'id' | 'timestamp'>) => void;
   acknowledgeAlert: (alertId: string) => void;
@@ -14,15 +15,23 @@ interface SecurityContextType {
   
   // Protected Files
   protectedFiles: ProtectedFile[];
-  addProtectedFile: (path: string) => void;
+  addProtectedFile: (path: string, type?: 'file' | 'directory') => void;
   removeProtectedFile: (fileId: string) => void;
   lockFile: (fileId: string, reason: string) => void;
   authorizeFile: (fileId: string) => void;
+  updateFileSettings: (fileId: string, settings: any) => void;
   
   // Network Rules
   networkRules: NetworkRule[];
+  firewallRules: NetworkRule[];
+  firewallPolicy: 'allow_all' | 'deny_all' | 'custom';
+  suspiciousPacketAction: 'allow_notify' | 'quarantine' | 'reject';
+  quarantinedPackets: QuarantinedPacket[];
   addNetworkRule: (rule: Omit<NetworkRule, 'id'>) => void;
   updateNetworkRule: (ruleId: string, updates: Partial<NetworkRule>) => void;
+  updateFirewallRule: (ruleId: string, updates: Partial<NetworkRule>) => void;
+  setFirewallPolicy: (policy: 'allow_all' | 'deny_all' | 'custom') => void;
+  updateSuspiciousPacketAction: (action: 'allow_notify' | 'quarantine' | 'reject') => void;
   deleteNetworkRule: (ruleId: string) => void;
   
   // Logs
@@ -161,11 +170,117 @@ const mockProtectedFiles: ProtectedFile[] = [
   }
 ];
 
+const mockFirewallRules: NetworkRule[] = [
+  {
+    id: '1',
+    protocol: 'HTTP',
+    port: '80',
+    action: 'allow',
+    description: 'Standard web traffic',
+    isActive: true
+  },
+  {
+    id: '2',
+    protocol: 'HTTPS',
+    port: '443',
+    action: 'allow',
+    description: 'Secure web traffic',
+    isActive: true
+  },
+  {
+    id: '3',
+    protocol: 'FTP',
+    port: '21',
+    action: 'deny',
+    description: 'File transfer protocol',
+    isActive: true
+  },
+  {
+    id: '4',
+    protocol: 'SMTP',
+    port: '25',
+    action: 'allow',
+    description: 'Email sending',
+    isActive: true
+  },
+  {
+    id: '5',
+    protocol: 'SSH',
+    port: '22',
+    action: 'allow',
+    description: 'Secure shell access',
+    isActive: true
+  }
+];
+
+const mockQuarantinedPackets: QuarantinedPacket[] = [
+  {
+    id: '1',
+    source: '192.168.1.100',
+    destination: '10.0.0.1',
+    protocol: 'TCP',
+    port: 445,
+    timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+    reason: 'Suspicious SMB traffic',
+    size: 1024,
+    status: 'quarantined'
+  },
+  {
+    id: '2',
+    source: '203.0.113.42',
+    destination: '10.0.0.1',
+    protocol: 'UDP',
+    port: 53,
+    timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+    reason: 'DNS tunneling attempt',
+    size: 512,
+    status: 'quarantined'
+  }
+];
+
+const mockNetworkAlerts: Alert[] = [
+  {
+    id: 'net1',
+    type: 'network',
+    severity: 'warning',
+    title: 'HTTP Traffic Allowed',
+    description: 'HTTP request from 192.168.1.50 allowed to external server',
+    timestamp: new Date(Date.now() - 1000 * 60 * 2).toISOString(),
+    source: '192.168.1.50',
+    status: 'active'
+  },
+  {
+    id: 'net2',
+    type: 'network',
+    severity: 'critical',
+    title: 'FTP Access Denied',
+    description: 'FTP connection attempt from 192.168.1.75 was blocked',
+    timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+    source: '192.168.1.75',
+    status: 'resolved'
+  },
+  {
+    id: 'net3',
+    type: 'network',
+    severity: 'info',
+    title: 'SSH Connection Allowed',
+    description: 'SSH connection from admin workstation allowed',
+    timestamp: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
+    source: '192.168.1.10',
+    status: 'resolved'
+  }
+];
+
 export const SecurityProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [systemStatus, setSystemStatus] = useState<SystemStatus>(mockSystemStatus);
   const [alerts, setAlerts] = useState<Alert[]>(mockAlerts);
+  const [networkAlerts, setNetworkAlerts] = useState<Alert[]>(mockNetworkAlerts);
   const [protectedFiles, setProtectedFiles] = useState<ProtectedFile[]>(mockProtectedFiles);
   const [networkRules, setNetworkRules] = useState<NetworkRule[]>([]);
+  const [firewallRules, setFirewallRules] = useState<NetworkRule[]>(mockFirewallRules);
+  const [firewallPolicy, setFirewallPolicy] = useState<'allow_all' | 'deny_all' | 'custom'>('custom');
+  const [suspiciousPacketAction, setSuspiciousPacketAction] = useState<'allow_notify' | 'quarantine' | 'reject'>('quarantine');
+  const [quarantinedPackets, setQuarantinedPackets] = useState<QuarantinedPacket[]>(mockQuarantinedPackets);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     dashboard: true,
@@ -219,9 +334,9 @@ export const SecurityProvider: React.FC<{ children: ReactNode }> = ({ children }
     const newFile: ProtectedFile = {
       id: crypto.randomUUID(),
       path,
+      type,
       status: 'protected',
-      accessAttempts: 0,
-      type
+      accessAttempts: 0
     };
     setProtectedFiles(prev => [...prev, newFile]);
   };
@@ -262,6 +377,16 @@ export const SecurityProvider: React.FC<{ children: ReactNode }> = ({ children }
     ));
   };
 
+  const updateFirewallRule = (ruleId: string, updates: Partial<NetworkRule>) => {
+    setFirewallRules(firewallRules.map(rule =>
+      rule.id === ruleId ? { ...rule, ...updates } : rule
+    ));
+  };
+
+  const updateSuspiciousPacketAction = (action: 'allow_notify' | 'quarantine' | 'reject') => {
+    setSuspiciousPacketAction(action);
+  };
+
   const deleteNetworkRule = (ruleId: string) => {
     setNetworkRules(networkRules.filter(rule => rule.id !== ruleId));
   };
@@ -298,6 +423,7 @@ export const SecurityProvider: React.FC<{ children: ReactNode }> = ({ children }
     <SecurityContext.Provider value={{
       systemStatus,
       alerts,
+      networkAlerts,
       unreadAlertsCount,
       addAlert,
       acknowledgeAlert,
@@ -308,8 +434,15 @@ export const SecurityProvider: React.FC<{ children: ReactNode }> = ({ children }
       lockFile,
       authorizeFile,
       networkRules,
+      firewallRules,
+      firewallPolicy,
+      suspiciousPacketAction,
+      quarantinedPackets,
       addNetworkRule,
       updateNetworkRule,
+      updateFirewallRule,
+      setFirewallPolicy,
+      updateSuspiciousPacketAction,
       deleteNetworkRule,
       logs,
       addLog,

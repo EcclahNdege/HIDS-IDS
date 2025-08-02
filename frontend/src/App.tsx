@@ -8,6 +8,7 @@ import Login from './components/Auth/Login';
 import Dashboard from './pages/Dashboard';
 import Alerts from './pages/Alerts';
 import FileMonitoring from './pages/FileMonitoring';
+import Firewall from './pages/Firewall';
 
 // Protected Route Component  
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -63,8 +64,8 @@ function AppContent() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="alerts" element={<Alerts />} />
           <Route path="monitoring/files" element={<FileMonitoring />} />
-          <Route path="monitoring/network" element={<div className="p-8 text-center text-gray-500">Network Monitoring - Coming Soon</div>} />
-          <Route path="prevention/firewall" element={<div className="p-8 text-center text-gray-500">Firewall Management - Coming Soon</div>} />
+          <Route path="monitoring/network" element={<div className="p-8 text-center text-gray-500">Network Monitoring, Coming Soon</div>} />
+          <Route path="prevention/firewall" element={<Firewall />} />
           <Route path="prevention/quarantined" element={<div className="p-8 text-center text-gray-500">Quarantine Management - Coming Soon</div>} />
           <Route path="logs" element={<div className="p-8 text-center text-gray-500">System Logs - Coming Soon</div>} />
           <Route path="users" element={<div className="p-8 text-center text-gray-500">User Management - Coming Soon</div>} />
