@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+
+# Python3
+__pycache__/
+venv/
