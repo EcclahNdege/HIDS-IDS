@@ -28,3 +28,9 @@ dist-ssr
 # Python3
 __pycache__/
 venv/
+
+# Pytest
+.pytest_cache/
+
+# Server files
+*/files/
