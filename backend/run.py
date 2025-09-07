@@ -72,7 +72,8 @@ def check_system_tools():
     
     if missing_tools:
         print(f"✗ Missing system tools: {', '.join(missing_tools)}")
-        print("Please install the missing tools using your package manager")
+        print("Please install the missing tools using your package manager. You could try running:")
+        print("  sudo apt-get install net-tools procps")
         return False
     else:
         print("✓ All required system tools are available")

@@ -51,10 +51,10 @@ class NetworkMonitor:
                 await self._monitor_connections()
                 
                 # Generate mock network packets for demonstration
-                await self._generate_mock_packets()
+                # await self._generate_mock_packets()
                 
                 # Check for suspicious activity
-                await self._check_suspicious_activity()
+                # await self._check_suspicious_activity()
                 
                 # Wait before next check
                 await asyncio.sleep(5)

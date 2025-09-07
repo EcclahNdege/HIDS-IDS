@@ -1,6 +1,8 @@
 import asyncio
+from datetime import datetime
 import os
 import time
+import threading
 from pathlib import Path
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -21,19 +23,19 @@ class FileEventHandler(FileSystemEventHandler):
 
     def on_modified(self, event):
         if not event.is_directory:
-            asyncio.create_task(self.file_monitor._handle_file_event("modified", event.src_path))
+            self.file_monitor._queue_file_event("modified", event.src_path)
 
     def on_created(self, event):
         if not event.is_directory:
-            asyncio.create_task(self.file_monitor._handle_file_event("created", event.src_path))
+            self.file_monitor._queue_file_event("created", event.src_path)
 
     def on_deleted(self, event):
         if not event.is_directory:
-            asyncio.create_task(self.file_monitor._handle_file_event("deleted", event.src_path))
+            self.file_monitor._queue_file_event("deleted", event.src_path)
 
     def on_moved(self, event):
         if not event.is_directory:
-            asyncio.create_task(self.file_monitor._handle_file_event("moved", event.dest_path, event.src_path))
+            self.file_monitor._queue_file_event("moved", event.dest_path, event.src_path)
 
 class FileMonitor:
     def __init__(self, websocket_manager: WebSocketManager):
@@ -42,11 +44,22 @@ class FileMonitor:
         self.observer = None
         self.protected_paths: Set[str] = set()
         self.event_handler = FileEventHandler(self)
+        
+        # Event queue and processing
+        self.event_queue = asyncio.Queue()
+        self.event_loop = None
+        self.processing_task = None
 
     async def start(self):
         """Start file monitoring"""
         if not self.monitoring:
             self.monitoring = True
+            
+            # Store reference to current event loop
+            self.event_loop = asyncio.get_running_loop()
+            
+            # Start event processing task
+            self.processing_task = asyncio.create_task(self._process_events())
             
             # Load protected files from database
             await self._load_protected_files()
@@ -71,10 +84,47 @@ class FileMonitor:
     async def stop(self):
         """Stop file monitoring"""
         self.monitoring = False
+        
         if self.observer:
             self.observer.stop()
             self.observer.join()
+            
+        # Stop event processing
+        if self.processing_task:
+            self.processing_task.cancel()
+            try:
+                await self.processing_task
+            except asyncio.CancelledError:
+                pass
+                
         logger.info("File monitoring stopped")
+
+    def _queue_file_event(self, event_type: str, file_path: str, old_path: str = None):
+        """Queue file event for async processing (called from watchdog thread)"""
+        if self.event_loop and not self.event_loop.is_closed():
+            # Schedule the coroutine in the main event loop
+            asyncio.run_coroutine_threadsafe(
+                self.event_queue.put((event_type, file_path, old_path)),
+                self.event_loop
+            )
+
+    async def _process_events(self):
+        """Process queued file events"""
+        while self.monitoring:
+            try:
+                # Wait for events with timeout to allow cancellation
+                event_type, file_path, old_path = await asyncio.wait_for(
+                    self.event_queue.get(), timeout=1.0
+                )
+                await self._handle_file_event(event_type, file_path, old_path)
+            except asyncio.TimeoutError:
+                # Timeout is normal, continue processing
+                continue
+            except asyncio.CancelledError:
+                # Task cancelled, exit gracefully
+                break
+            except Exception as e:
+                logger.error(f"Error processing file event: {e}")
 
     async def _load_protected_files(self):
         """Load protected files from database"""
@@ -166,7 +216,7 @@ class FileMonitor:
                 
                 if protected_file:
                     protected_file.access_attempts += 1
-                    protected_file.last_accessed = time.time()
+                    protected_file.last_accessed = datetime.now()
                     await session.commit()
                     
         except Exception as e:
