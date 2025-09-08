@@ -17,7 +17,18 @@ import Settings from './pages/Settings';
 
 // Protected Route Component  
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isFirstTimeSetup } = useAuth();
+  const { user, isFirstTimeSetup, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
   
   if (isFirstTimeSetup) {
     return <Navigate to="/setup" replace />;
@@ -32,7 +43,18 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 // Auth Route Component (redirects if already authenticated)
 const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isFirstTimeSetup } = useAuth();
+  const { user, isFirstTimeSetup, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
   
   if (user && !isFirstTimeSetup) {
     return <Navigate to="/dashboard" replace />;

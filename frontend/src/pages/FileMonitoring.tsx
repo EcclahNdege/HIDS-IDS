@@ -48,9 +48,10 @@ const FileMonitoring: React.FC = () => {
 
   const handleAddFile = () => {
     if (newFilePath.trim()) {
-      addProtectedFile(newFilePath.trim(), pathType);
-      setNewFilePath('');
-      setShowAddModal(false);
+      addProtectedFile(newFilePath.trim(), pathType).then(() => {
+        setNewFilePath('');
+        setShowAddModal(false);
+      });
     }
   };
 

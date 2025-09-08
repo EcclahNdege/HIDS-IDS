@@ -18,6 +18,7 @@ import {
   Tag
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useSecurity } from '../contexts/SecurityContext';
 
 interface LogEntry {
   id: string;
@@ -40,90 +41,13 @@ interface LogComment {
 
 const Logs: React.FC = () => {
   const { user } = useAuth();
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const { logs, addLogComment } = useSecurity();
   const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
   const [newComment, setNewComment] = useState('');
   const logsPerPage = 10;
-
-  // Mock log data
-  useEffect(() => {
-    const mockLogs: LogEntry[] = [
-      {
-        id: '1',
-        timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-        level: 'critical',
-        category: 'security',
-        message: 'Multiple failed login attempts detected',
-        details: 'User attempted to login 15 times with incorrect credentials from IP 192.168.1.100. Account has been temporarily locked for security.',
-        user: 'system',
-        comments: [
-          {
-            id: 'c1',
-            userId: 'admin1',
-            username: 'admin',
-            comment: 'Investigating this incident. IP appears to be from internal network.',
-            timestamp: new Date(Date.now() - 1000 * 60 * 2).toISOString()
-          }
-        ]
-      },
-      {
-        id: '2',
-        timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-        level: 'warning',
-        category: 'system',
-        message: 'High CPU usage detected',
-        details: 'System CPU usage has exceeded 90% for more than 5 minutes. This may indicate a performance issue or potential security threat.',
-        user: 'system',
-        comments: []
-      },
-      {
-        id: '3',
-        timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-        level: 'info',
-        category: 'user',
-        message: 'User login successful',
-        details: 'User "john_doe" successfully logged in from IP 192.168.1.50 using valid credentials.',
-        user: 'john_doe',
-        comments: []
-      },
-      {
-        id: '4',
-        timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-        level: 'error',
-        category: 'network',
-        message: 'Firewall rule violation',
-        details: 'Attempted connection to blocked port 445 from external IP 203.0.113.42. Connection was denied according to firewall rules.',
-        user: 'system',
-        comments: []
-      },
-      {
-        id: '5',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-        level: 'warning',
-        category: 'security',
-        message: 'Suspicious file access attempt',
-        details: 'User attempted to access protected file /etc/passwd without proper authorization. Access was denied and incident logged.',
-        user: 'unknown_user',
-        comments: []
-      },
-      // Add more mock logs...
-      ...Array.from({ length: 25 }, (_, i) => ({
-        id: `${i + 6}`,
-        timestamp: new Date(Date.now() - 1000 * 60 * (60 + i * 30)).toISOString(),
-        level: ['info', 'warning', 'error', 'critical'][Math.floor(Math.random() * 4)] as LogEntry['level'],
-        category: ['system', 'security', 'user', 'network'][Math.floor(Math.random() * 4)] as LogEntry['category'],
-        message: `System event ${i + 6}`,
-        details: `Detailed information about system event ${i + 6}. This is a longer description that provides more context about what happened.`,
-        user: ['system', 'admin', 'user1', 'user2'][Math.floor(Math.random() * 4)],
-        comments: []
-      }))
-    ];
-
-    setLogs(mockLogs);
-  }, []);
 
   // Filter logs
   useEffect(() => {
@@ -186,22 +110,7 @@ const Logs: React.FC = () => {
   const handleAddComment = () => {
     if (!selectedLog || !newComment.trim() || !user) return;
 
-    const comment: LogComment = {
-      id: crypto.randomUUID(),
-      userId: user.id,
-      username: user.username,
-      comment: newComment.trim(),
-      timestamp: new Date().toISOString()
-    };
-
-    const updatedLogs = logs.map(log =>
-      log.id === selectedLog.id
-        ? { ...log, comments: [...log.comments, comment] }
-        : log
-    );
-
-    setLogs(updatedLogs);
-    setSelectedLog({ ...selectedLog, comments: [...selectedLog.comments, comment] });
+    addLogComment(selectedLog.id, newComment.trim(), user.id, user.username);
     setNewComment('');
   };
 

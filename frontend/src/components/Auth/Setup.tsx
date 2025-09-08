@@ -36,7 +36,8 @@ const Setup: React.FC = () => {
       const success = await createInitialAdmin({
         username: formData.username,
         email: formData.email,
-        role: 'admin'
+        role: 'admin',
+        password: formData.password
       });
 
       if (success) {

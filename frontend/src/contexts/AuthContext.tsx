@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
+import { apiService } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -7,8 +8,9 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   isFirstTimeSetup: boolean;
+  loading: boolean;
   createInitialAdmin: (userData: Omit<User, 'id' | 'createdAt' | 'isActive'>) => Promise<boolean>;
-  addUser: (userData: Omit<User, 'id' | 'createdAt' | 'isActive'>) => Promise<boolean>;
+  addUser: (userData: Omit<User, 'id' | 'createdAt' | 'isActive'> & { password: string }) => Promise<boolean>;
   updateUserRole: (userId: string, role: 'admin' | 'user') => void;
   toggleUserStatus: (userId: string) => void;
   isAdmin: boolean;
@@ -16,88 +18,111 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock data for demonstration
-const mockUsers: User[] = [];
-
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
   const [isFirstTimeSetup, setIsFirstTimeSetup] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if there are any users in the system
-    const hasUsers = users.length > 0;
-    setIsFirstTimeSetup(!hasUsers);
+    const initializeAuth = async () => {
+      try {
+        // Check if setup is needed
+        const setupStatus = await apiService.checkSetup();
+        setIsFirstTimeSetup(setupStatus.needs_setup);
 
-    // Check for stored session
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser && hasUsers) {
-      const parsedUser = JSON.parse(storedUser);
-      const existingUser = users.find(u => u.id === parsedUser.id);
-      if (existingUser && existingUser.isActive) {
-        setUser(existingUser);
+        // If token exists, try to get current user
+        const token = localStorage.getItem('authToken');
+        if (token && !setupStatus.needs_setup) {
+          try {
+            const currentUser = await apiService.getCurrentUser();
+            setUser(currentUser);
+            
+            // Load users if admin
+            if (currentUser.role === 'admin') {
+              const usersData = await apiService.getUsers();
+              setUsers(usersData);
+            }
+          } catch (error) {
+            console.error('Failed to get current user:', error);
+            apiService.clearToken();
+          }
+        }
+      } catch (error) {
+        console.error('Failed to initialize auth:', error);
+      } finally {
+        setLoading(false);
       }
-    }
-  }, [users]);
+    };
+
+    initializeAuth();
+  }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
-    // Mock authentication - in real app, this would call an API
-    const foundUser = users.find(u => u.username === username && u.isActive);
-    if (foundUser) {
-      const updatedUser = { ...foundUser, lastLogin: new Date().toISOString() };
-      setUser(updatedUser);
-      setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
-      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+    try {
+      await apiService.login(username, password);
+      const currentUser = await apiService.getCurrentUser();
+      setUser(currentUser);
+      
+      // Load users if admin
+      if (currentUser.role === 'admin') {
+        const usersData = await apiService.getUsers();
+        setUsers(usersData);
+      }
+      
       return true;
+    } catch (error) {
+      console.error('Login failed:', error);
+      return false;
     }
-    return false;
   };
 
   const logout = () => {
+    apiService.clearToken();
     setUser(null);
-    localStorage.removeItem('currentUser');
+    setUsers([]);
   };
 
-  const createInitialAdmin = async (userData: Omit<User, 'id' | 'createdAt' | 'isActive'>): Promise<boolean> => {
-    if (!isFirstTimeSetup) return false;
-
-    const newUser: User = {
-      ...userData,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      isActive: true,
-      role: 'admin'
-    };
-
-    setUsers([newUser]);
-    setUser(newUser);
-    setIsFirstTimeSetup(false);
-    localStorage.setItem('currentUser', JSON.stringify(newUser));
-    return true;
+  const createInitialAdmin = async (userData: Omit<User, 'id' | 'createdAt' | 'isActive'> & { password: string }): Promise<boolean> => {
+    try {
+      const newUser = await apiService.createInitialAdmin(userData);
+      setUser(newUser);
+      setUsers([newUser]);
+      setIsFirstTimeSetup(false);
+      return true;
+    } catch (error) {
+      console.error('Failed to create initial admin:', error);
+      return false;
+    }
   };
 
-  const addUser = async (userData: Omit<User, 'id' | 'createdAt' | 'isActive'>): Promise<boolean> => {
-    if (!user || user.role !== 'admin') return false;
-
-    const newUser: User = {
-      ...userData,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      isActive: true
-    };
-
-    setUsers([...users, newUser]);
-    return true;
+  const addUser = async (userData: Omit<User, 'id' | 'createdAt' | 'isActive'> & { password: string }): Promise<boolean> => {
+    try {
+      const newUser = await apiService.createUser(userData);
+      setUsers([...users, newUser]);
+      return true;
+    } catch (error) {
+      console.error('Failed to create user:', error);
+      return false;
+    }
   };
 
-  const updateUserRole = (userId: string, role: 'admin' | 'user') => {
-    if (!user || user.role !== 'admin') return;
-    setUsers(users.map(u => u.id === userId ? { ...u, role } : u));
+  const updateUserRole = async (userId: string, role: 'admin' | 'user') => {
+    try {
+      await apiService.updateUserRole(userId, role);
+      setUsers(users.map(u => u.id === userId ? { ...u, role } : u));
+    } catch (error) {
+      console.error('Failed to update user role:', error);
+    }
   };
 
-  const toggleUserStatus = (userId: string) => {
-    if (!user || user.role !== 'admin') return;
-    setUsers(users.map(u => u.id === userId ? { ...u, isActive: !u.isActive } : u));
+  const toggleUserStatus = async (userId: string) => {
+    try {
+      await apiService.toggleUserStatus(userId);
+      setUsers(users.map(u => u.id === userId ? { ...u, isActive: !u.isActive } : u));
+    } catch (error) {
+      console.error('Failed to toggle user status:', error);
+    }
   };
 
   return (
@@ -107,6 +132,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       login,
       logout,
       isFirstTimeSetup,
+      loading,
       createInitialAdmin,
       addUser,
       updateUserRole,

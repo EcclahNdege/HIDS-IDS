@@ -17,6 +17,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { useSecurity } from '../contexts/SecurityContext';
+import { apiService } from '../services/api';
 
 interface QuarantinedFile {
   id: string;
@@ -47,11 +48,17 @@ type QuarantinedItem = QuarantinedFile | QuarantinedPacket;
 
 const Quarantine: React.FC = () => {
   const { quarantinedPackets } = useSecurity();
+  const [quarantinedPacketsState, setQuarantinedPackets] = useState(quarantinedPackets);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'files' | 'packets'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedItem, setSelectedItem] = useState<QuarantinedItem | null>(null);
   const itemsPerPage = 10;
+
+  // Update local state when context changes
+  useEffect(() => {
+    setQuarantinedPackets(quarantinedPackets);
+  }, [quarantinedPackets]);
 
   // Mock quarantined files
   const quarantinedFiles: QuarantinedFile[] = [
@@ -80,7 +87,7 @@ const Quarantine: React.FC = () => {
   ];
 
   // Convert quarantined packets to the expected format
-  const convertedPackets: QuarantinedPacket[] = quarantinedPackets.map(packet => ({
+  const convertedPackets: QuarantinedPacket[] = quarantinedPacketsState.map(packet => ({
     ...packet,
     type: 'packet' as const,
     sourceIP: packet.source
@@ -114,13 +121,21 @@ const Quarantine: React.FC = () => {
   const currentItems = filteredItems.slice(startIndex, endIndex);
 
   const handleRelease = (itemId: string) => {
-    // Implementation for releasing quarantined items
-    console.log('Releasing item:', itemId);
+    if (quarantinedPackets.find(p => p.id === itemId)) {
+      // Release quarantined packet
+      apiService.releaseQuarantinedPacket(itemId).then(() => {
+        setQuarantinedPackets(prev => prev.filter(p => p.id !== itemId));
+      }).catch(console.error);
+    }
   };
 
   const handleDelete = (itemId: string) => {
-    // Implementation for deleting quarantined items
-    console.log('Deleting item:', itemId);
+    if (quarantinedPackets.find(p => p.id === itemId)) {
+      // Delete quarantined packet
+      apiService.deleteQuarantinedPacket(itemId).then(() => {
+        setQuarantinedPackets(prev => prev.filter(p => p.id !== itemId));
+      }).catch(console.error);
+    }
   };
 
   const formatFileSize = (bytes: number) => {

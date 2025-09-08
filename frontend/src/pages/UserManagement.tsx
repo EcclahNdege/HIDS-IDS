@@ -37,7 +37,8 @@ const UserManagement: React.FC = () => {
     const success = await addUser({
       username: newUsername.trim(),
       email: newEmail.trim(),
-      role: newUserRole
+      role: newUserRole,
+      password: 'temp123456' // Temporary password - user will need to change on first login
     });
 
     if (success) {
