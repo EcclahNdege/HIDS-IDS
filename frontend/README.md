@@ -54,9 +54,15 @@ The frontend will be available at `http://localhost:5173`
 Create a `.env` file in the frontend directory:
 
 ```bash
-# API Configuration
-VITE_API_URL=http://localhost:8000
-VITE_WS_URL=ws://localhost:8000/ws
+# Backend API Configuration
+REACT_APP_API_URL=http://localhost:8000
+REACT_APP_WS_URL=ws://localhost:8000
+REACT_APP_ENVIRONMENT=development
+
+# For production deployment
+# REACT_APP_API_URL=https://your-api-domain.com
+# REACT_APP_WS_URL=wss://your-api-domain.com
+# REACT_APP_ENVIRONMENT=production
 ```
 
 ## API Integration
