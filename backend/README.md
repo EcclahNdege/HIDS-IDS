@@ -25,6 +25,8 @@ A comprehensive Network Intrusion Detection and Prevention System backend built 
 1. **Clone and setup**:
    ```bash
    cd backend
+   python3 -m venv venv
+   source venv/bin/activate
    pip install -r requirements.txt
    ```
 
@@ -96,7 +98,7 @@ Once running, visit:
 
 ```bash
 # Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/securewatch
+DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/securewatch
 DATABASE_HOST=localhost
 DATABASE_PORT=5432
 DATABASE_NAME=securewatch
@@ -117,6 +119,9 @@ PORT=8000
 FILES_DIR=files
 QUARANTINE_DIR=files/quarantine
 LOGS_DIR=files/logs
+
+# Monitoring
+SYSTEM_CHECK_INTERVAL=60
 ```
 
 ### System Scripts
