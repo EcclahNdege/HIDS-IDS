@@ -9,17 +9,16 @@ class ApiService {
   private token: string | null = null;
 
   constructor() {
-    this.token = localStorage.getItem('authToken');
+    // Using in-memory storage instead of localStorage
+    this.token = null;
   }
 
   setToken(token: string) {
     this.token = token;
-    localStorage.setItem('authToken', token);
   }
 
   clearToken() {
     this.token = null;
-    localStorage.removeItem('authToken');
   }
 
   private async request<T>(
@@ -47,6 +46,11 @@ class ApiService {
     }
 
     return response.json();
+  }
+
+  // Health check
+  async healthCheck() {
+    return this.request('/health');
   }
 
   // Authentication
@@ -89,7 +93,7 @@ class ApiService {
     return this.request('/api/auth/me');
   }
 
-  // System Status
+  // System
   async getSystemStatus() {
     return this.request('/api/system/status');
   }
@@ -118,6 +122,10 @@ class ApiService {
     return this.request(`/api/alerts/${query ? `?${query}` : ''}`);
   }
 
+  async getAlert(alertId: string) {
+    return this.request(`/api/alerts/${alertId}`);
+  }
+
   async createAlert(alertData: {
     type: string;
     severity: string;
@@ -128,6 +136,16 @@ class ApiService {
     return this.request('/api/alerts/', {
       method: 'POST',
       body: JSON.stringify(alertData),
+    });
+  }
+
+  async updateAlert(alertId: string, updates: {
+    status?: string;
+    assigned_to?: string;
+  }) {
+    return this.request(`/api/alerts/${alertId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
     });
   }
 
@@ -159,6 +177,10 @@ class ApiService {
     }
     const query = queryParams.toString();
     return this.request(`/api/files/protected${query ? `?${query}` : ''}`);
+  }
+
+  async getProtectedFile(fileId: string) {
+    return this.request(`/api/files/protected/${fileId}`);
   }
 
   async addProtectedFile(fileData: {
@@ -196,9 +218,8 @@ class ApiService {
   }
 
   async lockFile(fileId: string, reason: string) {
-    return this.request(`/api/files/protected/${fileId}/lock`, {
+    return this.request(`/api/files/protected/${fileId}/lock?reason=${encodeURIComponent(reason)}`, {
       method: 'POST',
-      body: JSON.stringify({ reason }),
     });
   }
 
@@ -208,8 +229,30 @@ class ApiService {
     });
   }
 
-  // Network Rules
-  async getNetworkRules(params?: {
+  // Network/Firewall
+  async enableFirewall() {
+    return this.request('/api/network/enable');
+  }
+
+  async disableFirewall() {
+    return this.request('/api/network/disable');
+  }
+
+  async reloadFirewall() {
+    return this.request('/api/network/reload');
+  }
+
+  async getFirewallStatus() {
+    let res = await this.request('/api/network/status');
+    let msg = res["message"];
+
+    if (msg == "Status: active") {
+      return {enabled : true, status: "active" };
+    }
+    return {enabled : false, status: "inactive" };
+  }
+
+  async getFirewallRules(params?: {
     skip?: number;
     limit?: number;
     is_active?: boolean;
@@ -226,60 +269,61 @@ class ApiService {
     return this.request(`/api/network/rules${query ? `?${query}` : ''}`);
   }
 
-  async createNetworkRule(ruleData: {
-    protocol: string;
-    port?: string;
-    action: string;
-    source?: string;
-    description: string;
-  }) {
-    return this.request('/api/network/rules', {
+  async allowIp(ip: string) {
+    return this.request(`/api/network/rules/ip/allow?ip=${encodeURIComponent(ip)}`, {
       method: 'POST',
-      body: JSON.stringify(ruleData),
     });
   }
 
-  async updateNetworkRule(ruleId: string, updates: {
-    action?: string;
-    is_active?: boolean;
-    description?: string;
-  }) {
-    return this.request(`/api/network/rules/${ruleId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(updates),
+  async blockIp(ip: string) {
+    return this.request(`/api/network/rules/ip/block?ip=${encodeURIComponent(ip)}`, {
+      method: 'POST',
     });
   }
 
-  async deleteNetworkRule(ruleId: string) {
-    return this.request(`/api/network/rules/${ruleId}`, {
+  async removeIp(ip: string) {
+    return this.request(`/api/network/rules/ip?ip=${encodeURIComponent(ip)}`, {
       method: 'DELETE',
     });
   }
 
-  async getQuarantinedPackets(params?: {
-    skip?: number;
-    limit?: number;
-  }) {
-    const queryParams = new URLSearchParams();
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined) {
-          queryParams.append(key, value.toString());
-        }
-      });
-    }
-    const query = queryParams.toString();
-    return this.request(`/api/network/quarantined${query ? `?${query}` : ''}`);
-  }
-
-  async releaseQuarantinedPacket(packetId: string) {
-    return this.request(`/api/network/quarantined/${packetId}/release`, {
+  async allowPort(port: string | number) {
+    return this.request(`/api/network/rules/port/allow?port=${port}`, {
       method: 'POST',
     });
   }
 
-  async deleteQuarantinedPacket(packetId: string) {
-    return this.request(`/api/network/quarantined/${packetId}`, {
+  async blockPort(port: string | number) {
+    return this.request(`/api/network/rules/port/block?port=${port}`, {
+      method: 'POST',
+    });
+  }
+
+  async removePort(port: string | number) {
+    return this.request(`/api/network/rules/port?port=${port}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async allowProtocol(protocol: string) {
+    return this.request(`/api/network/rules/protocol/allow?proto=${encodeURIComponent(protocol)}`, {
+      method: 'POST',
+    });
+  }
+
+  async blockProtocol(protocol: string) {
+    return this.request(`/api/network/rules/protocol/block?proto=${encodeURIComponent(protocol)}`, {
+      method: 'POST',
+    });
+  }
+
+  async removeProtocol(protocol: string) {
+    return this.request(`/api/network/rules/protocol?proto=${encodeURIComponent(protocol)}`, {
+      method: 'DELETE',
+    });
+  }
+  async removeRule(number: number) {
+    return this.request(`/api/network/rules/remove?rule=${encodeURIComponent(number)}`, {
       method: 'DELETE',
     });
   }
@@ -336,7 +380,11 @@ class ApiService {
       });
     }
     const query = queryParams.toString();
-    return this.request(`/api/users/${query ? `?${query}` : ''}`);
+    return this.request(`/api/users${query ? `?${query}` : ''}`);
+  }
+
+  async getUser(userId: string) {
+    return this.request(`/api/users/${userId}`);
   }
 
   async createUser(userData: {
@@ -345,16 +393,15 @@ class ApiService {
     password: string;
     role: string;
   }) {
-    return this.request('/api/users/', {
+    return this.request('/api/users', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
   }
 
   async updateUserRole(userId: string, role: string) {
-    return this.request(`/api/users/${userId}/role`, {
+    return this.request(`/api/users/${userId}/role?role=${encodeURIComponent(role)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ role }),
     });
   }
 

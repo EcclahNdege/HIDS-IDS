@@ -27,7 +27,7 @@ class UFWManager:
         """Run a ufw command and return output, raises CalledProcessError on failure."""
         try:
             result = subprocess.run(
-                ["sudo", self.ufw_cmd] + command,
+                ["sudo", self.ufw_cmd, "--force"] + command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,

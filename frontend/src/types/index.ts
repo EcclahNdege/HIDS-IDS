@@ -58,6 +58,14 @@ export interface NetworkRule {
   isActive: boolean;
 }
 
+export interface FirewallRule {
+  num: number;
+  rule: string;
+  action: 'ALLOW' | 'DENY';
+  direction: 'IN' | 'OUT';
+  from : string;
+}
+
 export interface QuarantinedPacket {
   id: string;
   source: string;
