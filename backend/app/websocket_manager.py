@@ -81,6 +81,12 @@ class WebSocketManager:
             "type": "new_log",
             "data": log_entry
         })
+    
+    async def broadcast_network_packet(self, packet: Dict[str, Any]):
+        await self.broadcast({
+            "type": "network_packet",
+            "data": packet
+        })
 
     def get_connection_count(self) -> int:
         return len(self.active_connections)
