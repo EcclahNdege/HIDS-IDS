@@ -26,8 +26,9 @@ class UFWManager:
     def _run(self, command: list[str]) -> str:
         """Run a ufw command and return output, raises CalledProcessError on failure."""
         try:
+            print(f"Running command: {' '.join(['sudo', self.ufw_cmd] + command)}")
             result = subprocess.run(
-                ["sudo", self.ufw_cmd, "--force"] + command,
+                ["sudo", self.ufw_cmd ] + command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -181,7 +182,7 @@ class UFWManager:
         Remove a rule by passing the same string used to allow/deny.
         Example: remove_rule("22/tcp") or remove_rule("from 192.168.1.10")
         """
-        return self._run(["delete"] + rule.split())
+        return self._run(["--force", "delete"] + rule.split())
 
 
 if __name__ == "__main__":
