@@ -3,7 +3,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 
 from app.routers.auth import get_current_active_user, User
 from app.services.firewall import UFWManager
-from app.services.pcap import Monitor
 
 router = APIRouter()
 fw = UFWManager()
@@ -85,19 +84,3 @@ async def deny_all(current_user: User = Depends(get_current_active_user)):
 @router.delete("/rules/remove")
 async def remove_rule(rule: str, current_user: User = Depends(get_current_active_user)):
     return {"message": fw.remove_rule(rule)}
-
-
-# ---------------------- Packet Capture Controls ----------------------
-@router.post("/pcap/start")
-async def start_pcap(interface: Optional[str] = None, count: Optional[int] = None):
-    if Monitor.running:
-        raise HTTPException(status_code=400, detail="Packet capture already running")
-    Monitor.start(interface=interface, packet_count=count)
-    return {"message": "Packet capture started"}
-
-@router.post("/pcap/stop")
-async def stop_pcap():
-    if not Monitor.running:
-        raise HTTPException(status_code=400, detail="No capture is running")
-    Monitor.stop()
-    return {"message": "Packet capture stopped"}

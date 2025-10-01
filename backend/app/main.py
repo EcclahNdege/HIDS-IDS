@@ -1,11 +1,12 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect,  HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 from dotenv import load_dotenv
+from typing import List, Optional
 
 from app.database import init_db
 from app.websocket_manager import WebSocketManager
@@ -13,6 +14,7 @@ from app.routers import auth, alerts, files, network, logs, users, system
 from app.services.system_monitor import SystemMonitor
 from app.services.file_monitor import FileMonitor
 from app.services.network_monitor import NetworkMonitor
+from app.services.pcap import PacketMonitor
 
 # Load environment variables
 load_dotenv()
@@ -22,9 +24,12 @@ websocket_manager = WebSocketManager()
 system_monitor = SystemMonitor(websocket_manager)
 file_monitor = FileMonitor(websocket_manager)
 network_monitor = NetworkMonitor(websocket_manager)
+Monitor = PacketMonitor(websocket_manager)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    loop = asyncio.get_running_loop()
+    Monitor.set_event_loop(loop)
     # Startup
     print("Starting SecureWatch Backend...")
     
@@ -50,6 +55,12 @@ async def lifespan(app: FastAPI):
     await system_monitor.stop()
     await file_monitor.stop()
     await network_monitor.stop()
+    try:
+        await Monitor.stop()
+    
+    except Exception as e:
+        print("Packet capture not running, continuing shutdown...")
+
 
 # Create FastAPI app
 app = FastAPI(
@@ -80,6 +91,7 @@ app.include_router(logs.router, prefix="/api/logs", tags=["logs"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(system.router, prefix="/api/system", tags=["system"])
 
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket_manager.connect(websocket)
@@ -98,6 +110,21 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "SecureWatch Backend"}
+
+# ---------------------- Packet Capture Controls ----------------------
+@app.post("/pcap/start")
+async def start_pcap(interface: Optional[str] = None, count: Optional[int] = None):
+    if Monitor.running:
+        raise HTTPException(status_code=400, detail="Packet capture already running")
+    Monitor.start(interface=interface, packet_count=count)
+    return {"message": "Packet capture started"}
+
+@app.post("/pcap/stop")
+async def stop_pcap():
+    if not Monitor.running:
+        raise HTTPException(status_code=400, detail="No capture is running")
+    Monitor.stop()
+    return {"message": "Packet capture stopped"}
 
 if __name__ == "__main__":
     uvicorn.run(
