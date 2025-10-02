@@ -54,7 +54,7 @@ class SystemMonitor:
                 await self._check_system_alerts(metrics)
                 
                 # Wait for next check (60 seconds)
-                await asyncio.sleep(60)
+                await asyncio.sleep(1)
                 
             except Exception as e:
                 logger.error(f"Error in system monitoring loop: {e}")

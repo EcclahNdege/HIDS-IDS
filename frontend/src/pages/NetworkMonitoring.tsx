@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+
 import { 
   Network, 
   Search, 
@@ -14,66 +15,50 @@ import {
   Clock,
   ArrowUpDown
 } from 'lucide-react';
+import { useSecurity } from '../contexts/SecurityContext';
 
-interface NetworkPacket {
-  id: string;
-  timestamp: string;
-  source: string;
-  destination: string;
-  protocol: string;
-  port: number;
-  size: number;
-  status: 'allowed' | 'denied' | 'quarantined';
-  type: 'HTTP' | 'HTTPS' | 'FTP' | 'SSH' | 'SMTP' | 'DNS' | 'TCP' | 'UDP' | 'ICMP';
-}
 
 const NetworkMonitoring: React.FC = () => {
+  const { networkPacket, startPacketCapture, stopPacketCapture } = useSecurity();
   const [packets, setPackets] = useState<NetworkPacket[]>([]);
   const [filteredPackets, setFilteredPackets] = useState<NetworkPacket[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'HTTP' | 'HTTPS' | 'FTP' | 'SSH' | 'SMTP' | 'DNS' | 'TCP' | 'UDP' | 'ICMP'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'allowed' | 'denied' | 'quarantined'>('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLive, setIsLive] = useState(true);
+  const [isLive, setIsLive] = useState(false);
   const packetsPerPage = 10;
 
-  // Mock data generator
-  const generateMockPacket = (): NetworkPacket => {
-    const types = ['HTTP', 'HTTPS', 'FTP', 'SSH', 'SMTP', 'DNS', 'TCP', 'UDP', 'ICMP'];
-    const statuses = ['allowed', 'denied', 'quarantined'];
-    const type = types[Math.floor(Math.random() * types.length)] as NetworkPacket['type'];
-    const status = statuses[Math.floor(Math.random() * statuses.length)] as NetworkPacket['status'];
-    
-    return {
-      id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-      source: `192.168.1.${Math.floor(Math.random() * 255)}`,
-      destination: `10.0.0.${Math.floor(Math.random() * 255)}`,
-      protocol: type,
-      port: Math.floor(Math.random() * 65535),
-      size: Math.floor(Math.random() * 1500) + 64,
-      status,
-      type
-    };
+  const togglePacketCapture = async () => {
+    try {
+      if (!isLive) {
+        await startPacketCapture();
+        setIsLive(true);
+      } else {
+        setIsLive(false);
+        await stopPacketCapture();
+        
+      }
+    } catch (error) {
+      console.error('Failed to toggle packet capture:', error);
+    }
   };
 
-  // Initialize with mock data
+  // Add new packets as they arrive via WebSocket
   useEffect(() => {
-    const initialPackets = Array.from({ length: 50 }, generateMockPacket);
-    setPackets(initialPackets);
-  }, []);
-
-  // Live packet simulation
-  useEffect(() => {
-    if (!isLive) return;
-
-    const interval = setInterval(() => {
-      const newPacket = generateMockPacket();
-      setPackets(prev => [newPacket, ...prev.slice(0, 199)]); // Keep last 200 packets
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [isLive]);
+    if (networkPacket && isLive) {
+      setPackets(prev => {
+        // Ensure we have an id for the packet
+        const packetWithId = {
+          ...networkPacket,
+          id: networkPacket.id || crypto.randomUUID(),
+          type: networkPacket.protocol // Use protocol as type if type is missing
+        };
+        // Keep last 200 packets
+        return [packetWithId, ...prev.slice(0, 199)];
+      });
+    }
+  }, [networkPacket, isLive]);
 
   // Filter packets
   useEffect(() => {
@@ -89,7 +74,9 @@ const NetworkMonitoring: React.FC = () => {
     }
 
     if (typeFilter !== 'all') {
-      filtered = filtered.filter(packet => packet.type === typeFilter);
+      filtered = filtered.filter(packet => 
+        packet.protocol.toLowerCase() === typeFilter.toLowerCase()
+      );
     }
 
     if (statusFilter !== 'all') {
@@ -142,7 +129,7 @@ const NetworkMonitoring: React.FC = () => {
             </span>
           </div>
           <button
-            onClick={() => setIsLive(!isLive)}
+            onClick={togglePacketCapture}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               isLive 
                 ? 'bg-red-100 text-red-700 hover:bg-red-200' 
@@ -219,19 +206,12 @@ const NetworkMonitoring: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Protocol Type</label>
               <select
                 value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as any)}
+                onChange={(e) => setTypeFilter(e.target.value)}
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="all">All Types</option>
-                <option value="HTTP">HTTP</option>
-                <option value="HTTPS">HTTPS</option>
-                <option value="FTP">FTP</option>
-                <option value="SSH">SSH</option>
-                <option value="SMTP">SMTP</option>
-                <option value="DNS">DNS</option>
-                <option value="TCP">TCP</option>
-                <option value="UDP">UDP</option>
-                <option value="ICMP">ICMP</option>
+                <option value="incoming">Incoming Packets</option>
+                <option value="outgoing">Outgoing Packets</option>
+                <option value="all">All Packets</option>
               </select>
             </div>
 
@@ -245,7 +225,6 @@ const NetworkMonitoring: React.FC = () => {
                 <option value="all">All Status</option>
                 <option value="allowed">Allowed</option>
                 <option value="denied">Denied</option>
-                <option value="quarantined">Quarantined</option>
               </select>
             </div>
           </div>
@@ -296,102 +275,112 @@ const NetworkMonitoring: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {currentPackets.map((packet) => (
-                <tr key={packet.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {new Date(packet.timestamp).toLocaleTimeString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center space-x-2">
-                      {getProtocolIcon(packet.protocol)}
-                      <span className="text-sm font-medium text-gray-900">{packet.protocol}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {packet.source}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {packet.destination}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {packet.port}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {packet.size} bytes
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${getStatusColor(packet.status)}`}>
-                      {packet.status}
-                    </span>
+              {currentPackets.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                    {isLive ? 'Waiting for packets...' : 'No packets captured. Click Resume to start monitoring.'}
                   </td>
                 </tr>
-              ))}
+              ) : (
+                currentPackets.map((packet) => (
+                  <tr key={packet.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {new Date(packet.timestamp).toLocaleTimeString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-2">
+                        {getProtocolIcon(packet.protocol)}
+                        <span className="text-sm font-medium text-gray-900">{packet.protocol}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {packet.source}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {packet.destination}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {packet.port}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {packet.size} bytes
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${getStatusColor(packet.status)}`}>
+                        {packet.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
         {/* Pagination */}
-        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-          <div className="flex-1 flex justify-between sm:hidden">
-            <button
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-              disabled={currentPage === totalPages}
-              className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-gray-700">
-                Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
-                <span className="font-medium">{Math.min(endIndex, filteredPackets.length)}</span> of{' '}
-                <span className="font-medium">{filteredPackets.length}</span> results
-              </p>
+        {filteredPackets.length > 0 && (
+          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+            <div className="flex-1 flex justify-between sm:hidden">
+              <button
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
             </div>
-            <div>
-              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  const page = i + 1;
-                  return (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                        currentPage === page
-                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  );
-                })}
-                <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage === totalPages}
-                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </nav>
+            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
+                  <span className="font-medium">{Math.min(endIndex, filteredPackets.length)}</span> of{' '}
+                  <span className="font-medium">{filteredPackets.length}</span> results
+                </p>
+              </div>
+              <div>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                  <button
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const page = i + 1;
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                          currentPage === page
+                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </nav>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

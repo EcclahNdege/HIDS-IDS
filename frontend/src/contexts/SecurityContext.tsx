@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Alert, SystemStatus, ProtectedFile, NetworkRule, LogEntry, NotificationSettings, QuarantinedPacket, FirewallRule } from '../types';
+import { Alert, SystemStatus, ProtectedFile, NetworkRule, LogEntry, NotificationSettings, NetworkPacket, FirewallRule } from '../types';
 import { apiService } from '../services/api';
 import { webSocketService } from '../services/websocket';
 
@@ -35,13 +35,16 @@ interface SecurityContextType {
   firewallRules: FirewallRule[];
   firewallPolicy: 'allow_all' | 'deny_all' | 'custom';
   suspiciousPacketAction: 'allow_notify' | 'quarantine' | 'reject';
-  quarantinedPackets: QuarantinedPacket[];
+  networkPacket: NetworkPacket | void;
   addNetworkRule: (rule: Omit<NetworkRule, 'id'>) => Promise<void>;
   updateNetworkRule: (ruleId: string, updates: Partial<NetworkRule>) => void;
   updateFirewallRule: (ruleId: string, updates: Partial<NetworkRule>) => void;
   setFirewallPolicy: (policy: 'allow_all' | 'deny_all' | 'custom') => void;
-  updateSuspiciousPacketAction: (action: 'allow_notify' | 'quarantine' | 'reject') => void;
   deleteNetworkRule: (ruleId: string) => void;
+
+  // Packet Capture
+  startPacketCapture: () => Promise<void>
+  stopPacketCapture: () => Promise<void>
   
   // IP/Port/Protocol Management
   allowIp: (ip: string) => Promise<void>;
@@ -87,7 +90,7 @@ export const SecurityProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [firewallStatus, setFirewallStatus] = useState<{ enabled: boolean; status: string } | null>(null);
   const [firewallPolicy, setFirewallPolicy] = useState<'allow_all' | 'deny_all' | 'custom'>('custom');
   const [suspiciousPacketAction, setSuspiciousPacketAction] = useState<'allow_notify' | 'quarantine' | 'reject'>('quarantine');
-  const [quarantinedPackets, setQuarantinedPackets] = useState<QuarantinedPacket[]>([]);
+  const [networkPacket, setNetworkPacket] = useState<NetworkPacket>();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     dashboard: true,
@@ -160,11 +163,16 @@ export const SecurityProvider: React.FC<{ children: ReactNode }> = ({ children }
       setLogs(prev => [data, ...prev.slice(0, 49)]);
     };
 
+    const handleNetworkPacket = (data: NetworkPacket) => {
+      setNetworkPacket(data);
+    }
+
     webSocketService.on('system_status', handleSystemStatus);
     webSocketService.on('new_alert', handleNewAlert);
     webSocketService.on('file_event', handleFileEvent);
     webSocketService.on('network_event', handleNetworkEvent);
     webSocketService.on('new_log', handleNewLog);
+    webSocketService.on('network_packet', handleNetworkPacket);
 
     return () => {
       webSocketService.off('system_status', handleSystemStatus);
@@ -172,6 +180,7 @@ export const SecurityProvider: React.FC<{ children: ReactNode }> = ({ children }
       webSocketService.off('file_event', handleFileEvent);
       webSocketService.off('network_event', handleNetworkEvent);
       webSocketService.off('new_log', handleNewLog);
+      webSocketService.off('network_packet', handleNetworkPacket);
     };
   }, []);
 
@@ -337,6 +346,25 @@ export const SecurityProvider: React.FC<{ children: ReactNode }> = ({ children }
       throw error;
     }
   };
+
+  // Packet Capture
+  const startPacketCapture = async () => {
+    try {
+      await apiService.startPacketCapture();
+    } catch (error) {
+      console.error('Failed to start packet capture');
+      throw error;
+    }
+  }
+
+  const stopPacketCapture = async () => {
+    try {
+      await apiService.stopPacketCapture();
+    } catch (error) {
+      console.error('Failed to stop packet capture');
+      throw error;
+    }
+  }
 
   // Alert Functions
   const addAlert = async (alertData: Omit<Alert, 'id' | 'timestamp'>) => {
@@ -559,12 +587,13 @@ export const SecurityProvider: React.FC<{ children: ReactNode }> = ({ children }
       firewallRules,
       firewallPolicy,
       suspiciousPacketAction,
-      quarantinedPackets,
+      networkPacket,
+      startPacketCapture,
+      stopPacketCapture,
       addNetworkRule,
       updateNetworkRule,
       updateFirewallRule,
       setFirewallPolicy,
-      updateSuspiciousPacketAction,
       deleteNetworkRule,
       allowIp,
       blockIp,

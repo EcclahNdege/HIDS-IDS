@@ -234,7 +234,8 @@ class PacketMonitor:
                 "destination": f"{dst_ip}:{dst_port}" if dst_port else dst_ip,
                 "size": size,
                 "direction": direction,
-                "status": status
+                "status": status,
+                "port": dst_port if dst_port else src_port
             }
         except Exception as e:
             print(f"[pcap] Parse error: {e}", file=sys.stderr)

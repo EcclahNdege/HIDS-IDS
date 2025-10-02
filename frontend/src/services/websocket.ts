@@ -3,6 +3,7 @@ type WebSocketEventType =
   | 'new_alert'
   | 'file_event'
   | 'network_event'
+  | 'network_packet'
   | 'new_log';
 
 interface WebSocketMessage {

@@ -47,17 +47,6 @@ export interface ProtectedFile {
   };
 }
 
-export interface NetworkRule {
-  id: string;
-  // protocol: 'TCP' | 'UDP' | 'ICMP';
-  protocol: string;
-  port: string;
-  action: 'allow' | 'deny' | 'quarantine';
-  source?: string;
-  description: string;
-  isActive: boolean;
-}
-
 export interface FirewallRule {
   num: number;
   rule: string;
@@ -66,16 +55,15 @@ export interface FirewallRule {
   from : string;
 }
 
-export interface QuarantinedPacket {
-  id: string;
+export interface NetworkPacket {
+  timestamp: string;
+  protocol: string;
   source: string;
   destination: string;
-  protocol: string;
-  port: number;
-  timestamp: string;
-  reason: string;
+  port: number,
   size: number;
-  status: 'quarantined' | 'released' | 'blocked';
+  direction: string;
+  status: 'allowed' | 'denied';
 }
 
 export interface LogEntry {

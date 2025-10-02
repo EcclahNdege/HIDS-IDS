@@ -243,7 +243,7 @@ class ApiService {
   }
 
   async getFirewallStatus() {
-    let res = await this.request('/api/network/status');
+    let res: any = await this.request('/api/network/status');
     let msg = res["message"];
 
     if (msg == "Status: active") {
@@ -325,6 +325,18 @@ class ApiService {
   async removeRule(number: number) {
     return this.request(`/api/network/rules/remove?rule=${encodeURIComponent(number)}`, {
       method: 'DELETE',
+    });
+  }
+
+  async startPacketCapture(){
+    return this.request(`/pcap/start` , {
+      method: 'POST'
+    });
+  }
+
+  async stopPacketCapture(){
+    return this.request(`/pcap/stop` , {
+      method: 'POST'
     });
   }
 
